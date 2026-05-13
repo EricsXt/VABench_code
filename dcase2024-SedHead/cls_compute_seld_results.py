@@ -11,6 +11,7 @@ except ImportError:  # pragma: no cover - optional debugging helper
 import json
 from multiprocessing.pool import ThreadPool
 from tqdm import tqdm
+from scipy.optimize import linear_sum_assignment
 
 
 def jackknife_estimation(global_value, partial_estimates, significance_level=0.05):
@@ -88,6 +89,7 @@ class ComputeSELDResults(object):
         self._nb_ref_files = len(self._ref_labels)
         self._average = params['average']
         self._num_workers = max(1, int(params.get('num_workers', 1)))
+        self._last_aux_metrics = {}
 
     def _load_dataset_stats(self):
         stats_path = self._feat_cls.get_dataset_stats_file()
@@ -148,6 +150,7 @@ class ComputeSELDResults(object):
         # collect predicted files info
         pred_files = sorted([name for name in os.listdir(pred_files_path) if name.endswith('.csv')])
         pred_labels_dict = {}
+        coarse_metrics = CoarseVerticalMetrics()
         tqdm.write('Scoring {} prediction files from {}'.format(len(pred_files), pred_files_path))
         if self.segment_level:
             eval = SELD_evaluation_metrics.SELDMetricsSegmentLevel(nb_classes=self._feat_cls.get_nb_classes(),
@@ -166,8 +169,10 @@ class ComputeSELDResults(object):
                 leave=False
             ):
                 eval.update_seld_scores(pred_labels, self._ref_labels[pred_file][0], eval_dist=self.evaluate_distance)
+                coarse_metrics.update(pred_labels, self._ref_labels[pred_file][0])
                 if is_jackknife:
                     pred_labels_dict[pred_file] = pred_labels
+        self._last_aux_metrics = coarse_metrics.summary()
         # Overall SED and DOA scores
 
         if self.evaluate_distance:
@@ -232,6 +237,9 @@ class ComputeSELDResults(object):
             return (ER, F, AngE, DistE, RelDistE, LR, seld_scr, classwise_results) if self.evaluate_distance \
                 else (ER, F, AngE, LR, seld_scr, classwise_results)
 
+    def get_last_aux_metrics(self):
+        return dict(self._last_aux_metrics)
+
     def get_consolidated_SELD_results(self, pred_files_path, score_type_list=['all', 'room']):
         '''
             Get all categories of results.
@@ -256,7 +264,6 @@ class ComputeSELDResults(object):
             print('\n\n---------------------------------------------------------------------------------------------------')
             print('------------------------------------  {}   ---------------------------------------------'.format('Total score' if score_type == 'all' else 'score per {}'.format(score_type)))
             print('---------------------------------------------------------------------------------------------------')
-
             split_cnt_dict = self.get_nb_files(pred_files, tag=score_type)  # collect files corresponding to score_type
             # Calculate scores across files for a given score_type
             for split_key in np.sort(list(split_cnt_dict)):
@@ -295,6 +302,92 @@ class ComputeSELDResults(object):
                 print('DOA metrics: DOA error: {:0.1f}, Localization Recall: {:0.1f}'.format(AngE, 100 * LR))
                 if self.evaluate_distance:
                     print('Distance metrics: Distance error: {:0.1f}, Relative distance error: {:0.1f}'.format(DistE, RelDistE))
+
+
+class CoarseVerticalMetrics(object):
+    def __init__(self):
+        self.tp = 0
+        self.fp = 0
+        self.fn = 0
+        self.total_gt = 0
+        self.correct = 0
+
+    @staticmethod
+    def _extract_gt_signs(frame_class_dict):
+        if not frame_class_dict:
+            return []
+        signs = []
+        for value in frame_class_dict.values():
+            row = np.asarray(value, dtype=np.float64)
+            xyz = row[:3]
+            if np.all(np.isfinite(xyz)):
+                continue
+            if row.shape[0] >= 5:
+                coarse = row[-1]
+            elif row.shape[0] == 4:
+                coarse = row[3]
+            else:
+                continue
+            if coarse > 0:
+                signs.append(1)
+            elif coarse < 0:
+                signs.append(-1)
+        return signs
+
+    @staticmethod
+    def _extract_pred_signs(frame_class_dict):
+        if not frame_class_dict:
+            return []
+        signs = []
+        for value in frame_class_dict.values():
+            row = np.asarray(value, dtype=np.float64)
+            if row.shape[0] < 3:
+                continue
+            xyz = row[:3]
+            if not np.all(np.isfinite(xyz)):
+                continue
+            signs.append(1 if xyz[2] >= 0 else -1)
+        return signs
+
+    def update(self, pred, gt):
+        for frame_idx in gt.keys():
+            gt_frame = gt[frame_idx]
+            pred_frame = pred.get(frame_idx, {})
+            class_ids = set(gt_frame.keys()) | set(pred_frame.keys())
+            for class_id in class_ids:
+                gt_signs = self._extract_gt_signs(gt_frame.get(class_id))
+                if not gt_signs:
+                    continue
+                pred_signs = self._extract_pred_signs(pred_frame.get(class_id))
+                self.total_gt += len(gt_signs)
+                if not pred_signs:
+                    self.fn += len(gt_signs)
+                    continue
+                cost = np.array(
+                    [[0.0 if gt_s == pred_s else 1.0 for pred_s in pred_signs] for gt_s in gt_signs],
+                    dtype=np.float64
+                )
+                row_ind, col_ind = linear_sum_assignment(cost)
+                correct = int(np.sum(cost[row_ind, col_ind] == 0.0))
+                mismatched = len(row_ind) - correct
+                self.correct += correct
+                self.tp += correct
+                self.fp += mismatched + max(0, len(pred_signs) - len(gt_signs))
+                self.fn += mismatched + max(0, len(gt_signs) - len(pred_signs))
+
+    def summary(self):
+        acc = (self.correct / self.total_gt) if self.total_gt else np.nan
+        f1 = (self.tp / (self.tp + 0.5 * (self.fp + self.fn) + 1e-10)) if self.total_gt else np.nan
+        precision = (self.tp / (self.tp + self.fp + 1e-10)) if self.total_gt else np.nan
+        recall = (self.tp / (self.tp + self.fn + 1e-10)) if self.total_gt else np.nan
+        return {
+            'updown_total_gt': int(self.total_gt),
+            'updown_correct': int(self.correct),
+            'updown_accuracy': float(acc) if np.isfinite(acc) else np.nan,
+            'updown_f1': float(f1) if np.isfinite(f1) else np.nan,
+            'updown_precision': float(precision) if np.isfinite(precision) else np.nan,
+            'updown_recall': float(recall) if np.isfinite(recall) else np.nan,
+        }
 
 
 def reshape_3Dto2D(A):

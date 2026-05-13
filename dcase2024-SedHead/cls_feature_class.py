@@ -957,6 +957,7 @@ class FeatureClass:
                 for tmp_val in in_dict[frame_cnt]:
                     elevation = float(tmp_val[3])
                     azimuth = float(tmp_val[2])
+                    coarse_vertical = 0.0
                     if np.isfinite(elevation) and np.isfinite(azimuth):
                         ele_rad = elevation * np.pi/180.
                         azi_rad = azimuth * np.pi/180.
@@ -966,11 +967,19 @@ class FeatureClass:
                         z = np.sin(ele_rad)
                     else:
                         # Preserve the event for SED supervision, but mark DOA as invalid so
-                        # regression loss can skip it later.
+                        # regression loss can skip it later. Keep a signed coarse up/down
+                        # flag so evaluation can still report a separate vertical metric.
                         x = np.nan
                         y = np.nan
                         z = np.nan
-                    out_dict[frame_cnt].append(tmp_val[0:2] + [x, y, z] + tmp_val[4:])
+                        if np.isposinf(elevation):
+                            coarse_vertical = 1.0
+                        elif np.isneginf(elevation):
+                            coarse_vertical = -1.0
+                    extra = list(tmp_val[4:])
+                    if coarse_vertical != 0.0:
+                        extra.append(coarse_vertical)
+                    out_dict[frame_cnt].append(tmp_val[0:2] + [x, y, z] + extra)
         return out_dict
 
     def convert_output_format_cartesian_to_polar(self, in_dict):

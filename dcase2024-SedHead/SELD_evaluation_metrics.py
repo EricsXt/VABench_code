@@ -353,11 +353,29 @@ class SELDMetrics(object):
             loc_FN, loc_FP = 0, 0
             for class_cnt in range(self._nb_classes):
                 # Counting the number of referece tracks for each class
-                nb_gt_doas = len(gt[frame_cnt][class_cnt]) if class_cnt in gt[frame_cnt] else None
-                nb_pred_doas = len(pred[frame_cnt][class_cnt]) if class_cnt in pred[frame_cnt] else None
-                if nb_gt_doas is not None:
+                gt_values = [np.asarray(v, dtype=np.float64) for v in gt[frame_cnt][class_cnt].values()] if class_cnt in gt[frame_cnt] else None
+                pred_values = [np.asarray(v, dtype=np.float64) for v in pred[frame_cnt][class_cnt].values()] if class_cnt in pred[frame_cnt] else None
+
+                if gt_values is not None:
+                    gt_valid_indices = [idx for idx, row in enumerate(gt_values) if np.all(np.isfinite(row[:3]))]
+                    nb_gt_doas = len(gt_valid_indices)
                     self._Nref[class_cnt] += nb_gt_doas
-                if class_cnt in gt[frame_cnt] and class_cnt in pred[frame_cnt]:
+                else:
+                    gt_valid_indices = []
+                    nb_gt_doas = None
+
+                if pred_values is not None:
+                    pred_valid_indices = [idx for idx, row in enumerate(pred_values) if np.all(np.isfinite(row[:3]))]
+                    nb_pred_doas = len(pred_valid_indices)
+                else:
+                    pred_valid_indices = []
+                    nb_pred_doas = None
+
+                if nb_gt_doas == 0 and gt_values is not None:
+                    # Coarse-only labels are handled separately outside the standard SELD metrics.
+                    continue
+
+                if class_cnt in gt[frame_cnt] and class_cnt in pred[frame_cnt] and nb_gt_doas and nb_pred_doas:
                     # True positives or False positive case
 
                     # NOTE: For multiple tracks per class, associate the predicted DOAs to corresponding reference
@@ -366,24 +384,26 @@ class SELDMetrics(object):
 
                     # Reference and predicted track matching
 
-                    gt_doas = np.array(list(gt[frame_cnt][class_cnt].values()))
-                    gt_ids = np.array(list(gt[frame_cnt][class_cnt].keys()))
-                    pred_doas = np.array(list(pred[frame_cnt][class_cnt].values()))
-                    pred_ids = np.array(list(pred[frame_cnt][class_cnt].keys()))
+                    gt_ids_all = list(gt[frame_cnt][class_cnt].keys())
+                    pred_ids_all = list(pred[frame_cnt][class_cnt].keys())
+                    gt_doas = np.stack([gt_values[idx] for idx in gt_valid_indices], axis=0)
+                    gt_ids = np.array([gt_ids_all[idx] for idx in gt_valid_indices])
+                    pred_doas = np.stack([pred_values[idx] for idx in pred_valid_indices], axis=0)
+                    pred_ids = np.array([pred_ids_all[idx] for idx in pred_valid_indices])
 
-                    # Extract distance
-                    if gt_doas.shape[-1] == 4:
+                    # Extract distance. Rows may also carry an optional coarse vertical flag
+                    # as the last value, but only invalid reference rows use it and those were
+                    # filtered out above.
+                    if gt_doas.shape[-1] >= 4:
                         gt_dist = gt_doas[:, 3] if eval_dist else None
                         gt_doas = gt_doas[:, :3]
                     else:
-                        assert not eval_dist, 'Distance evaluation was requested but the ground-truth distance was not provided.'
-                        gt_dist = None
-                    if pred_doas.shape[-1] == 4:
+                        gt_dist = np.full(len(gt_doas), -1.0, dtype=np.float64) if eval_dist else None
+                    if pred_doas.shape[-1] >= 4:
                         pred_dist = pred_doas[:, 3] if eval_dist else None
                         pred_doas = pred_doas[:, :3]
                     else:
-                        assert not eval_dist, 'Distance evaluation was requested but the predicted distance was not provided.'
-                        pred_dist = None
+                        pred_dist = np.full(len(pred_doas), -1.0, dtype=np.float64) if eval_dist else None
 
                     doa_err_list, row_inds, col_inds = least_distance_between_gt_pred(gt_doas, pred_doas, gt_dist, pred_dist)
                     assignations[class_cnt] = {gt_ids[row_inds[i]] : pred_ids[col_inds[i]] for i in range(len(doa_err_list))}
@@ -439,7 +459,7 @@ class SELDMetrics(object):
 
                     assignations_pre[class_cnt] = assignations[class_cnt]
 
-                elif class_cnt in gt[frame_cnt] and class_cnt not in pred[frame_cnt]:
+                elif class_cnt in gt[frame_cnt] and nb_gt_doas and class_cnt not in pred[frame_cnt]:
                     # False negative
                     loc_FN += nb_gt_doas
                     self._FN[class_cnt] += nb_gt_doas

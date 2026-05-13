@@ -1055,6 +1055,7 @@ def main(argv):
                             score_obj = ComputeSELDResults(params)
                         tqdm.write('Scoring validation outputs from {}'.format(val_output_folder))
                         val_ER, val_F, val_LE, val_dist_err, val_rel_dist_err, val_LR, val_seld_scr, classwise_val_scr = score_obj.get_SELD_Results(val_output_folder)
+                        val_aux = score_obj.get_last_aux_metrics()
                         val_time = time.time() - start_time
 
                         # Save best checkpoint on both subset and full validation rounds using overall SELD score.
@@ -1085,6 +1086,7 @@ def main(argv):
                             'ER/F/LR={:.3f}/{:.3f}/{:.3f} '
                             'AngE_deg/AngAcc={:.2f}/{:.3f} '
                             'Dist/RelDist/SELD={:.2f}/{:.2f}/{:.2f} '
+                            'UpDown Acc/F1={:.3f}/{:.3f} n={} '
                             'best_any(epoch={},mode={})='
                             'ER:{:.3f} F:{:.3f} LR:{:.3f} AngE:{:.2f} AngAcc:{:.3f} Dist:{:.2f} RelDist:{:.2f} SELD:{:.2f} '
                             'best_full(epoch={})='
@@ -1095,6 +1097,9 @@ def main(argv):
                             val_ER, val_F, val_LR,
                             val_LE, val_ang_acc,
                             val_dist_err, val_rel_dist_err, val_seld_scr,
+                            val_aux.get('updown_accuracy', float('nan')),
+                            val_aux.get('updown_f1', float('nan')),
+                            val_aux.get('updown_total_gt', 0),
                             best_val_epoch, best_val_mode,
                             best_ER, best_F, best_LR, best_LE, best_ang_acc, best_dist_err, best_rel_dist_err, best_seld_scr,
                             best_full_epoch,
@@ -1171,6 +1176,7 @@ def main(argv):
                     test_ER, test_F, test_LE, test_dist_err, test_rel_dist_err, test_LR, test_seld_scr, classwise_test_scr = score_obj.get_SELD_Results(
                         dcase_output_test_folder, is_jackknife=use_jackknife
                     )
+                    test_aux = score_obj.get_last_aux_metrics()
 
                     test_ang = test_LE[0] if use_jackknife else test_LE
                     test_ang_acc = max(0.0, 1.0 - (test_ang / 180.0)) if np.isfinite(test_ang) else np.nan
@@ -1181,6 +1187,16 @@ def main(argv):
                     tqdm.write('AngE_deg / AngAcc: {:0.1f} / {:0.3f} {}'.format(test_ang, test_ang_acc, '[{:0.2f} , {:0.2f}]'.format(test_LE[1][0], test_LE[1][1]) if use_jackknife else ''))
                     tqdm.write('Distance error: {:0.2f} {}'.format(test_dist_err[0] if use_jackknife else test_dist_err, '[{:0.2f} , {:0.2f}]'.format(test_dist_err[1][0], test_dist_err[1][1]) if use_jackknife else ''))
                     tqdm.write('Relative distance error: {:0.2f} {}'.format(test_rel_dist_err[0] if use_jackknife else test_rel_dist_err, '[{:0.2f} , {:0.2f}]'.format(test_rel_dist_err[1][0], test_rel_dist_err[1][1]) if use_jackknife else ''))
+                    if test_aux.get('updown_total_gt', 0):
+                        tqdm.write(
+                            'UpDown Acc/F1/Prec/Rec: {:0.3f} / {:0.3f} / {:0.3f} / {:0.3f} (n={})'.format(
+                                test_aux.get('updown_accuracy', float('nan')),
+                                test_aux.get('updown_f1', float('nan')),
+                                test_aux.get('updown_precision', float('nan')),
+                                test_aux.get('updown_recall', float('nan')),
+                                test_aux.get('updown_total_gt', 0),
+                            )
+                        )
 
                     if params['average'] == 'macro':
                         tqdm.write('Classwise results on unseen test data')

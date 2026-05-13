@@ -160,6 +160,31 @@ class DataGenerator(object):
             self._label_len = temp_label.shape[-1]
         self._doa_len = 3
 
+    def _compute_av_effective_frame_totals(self, files_meta=None):
+        """
+        For audio-visual training, the true number of usable sequences is bounded by the
+        shorter of audio and video streams after label-aligned cropping. Estimate that
+        conservatively here to avoid overrunning `_filenames_list` near the end of an epoch.
+        """
+        total_feat_frames = 0
+        total_vid_frames = 0
+        for filename in self._filenames_list:
+            if files_meta is not None:
+                feat_frames = int(files_meta[filename]['feat_frames'])
+            else:
+                feat_frames = int(np.load(os.path.join(self._feat_dir, filename), mmap_mode='r').shape[0])
+
+            label_frames = int(np.load(os.path.join(self._label_dir, filename), mmap_mode='r').shape[0])
+            vid_frames = int(np.load(os.path.join(self._vid_feat_dir, filename), mmap_mode='r').shape[0])
+
+            usable_label_frames = label_frames - (label_frames % self._label_seq_len)
+            seq_mul = usable_label_frames // self._label_seq_len
+
+            total_feat_frames += min(feat_frames, seq_mul * self._feature_seq_len)
+            total_vid_frames += min(vid_frames, seq_mul * self._vid_feature_seq_len)
+
+        return total_feat_frames, total_vid_frames
+
     def _get_filenames_list_and_feat_label_sizes_from_cache(self):
         if not self._dataset_stats or 'files' not in self._dataset_stats:
             return False
@@ -205,7 +230,14 @@ class DataGenerator(object):
         if self._per_file:
             self._nb_total_batches = len(self._filenames_list)
         else:
-            self._nb_total_batches = int(np.floor(total_frames / (self._batch_size*self._feature_seq_len)))
+            if self._modality == 'audio_visual' and not self._is_eval:
+                av_feat_frames, av_vid_frames = self._compute_av_effective_frame_totals(files_meta)
+                self._nb_total_batches = int(min(
+                    np.floor(av_feat_frames / (self._batch_size * self._feature_seq_len)),
+                    np.floor(av_vid_frames / (self._batch_size * self._vid_feature_seq_len)),
+                ))
+            else:
+                self._nb_total_batches = int(np.floor(total_frames / (self._batch_size*self._feature_seq_len)))
 
         self._feature_batch_seq_len = self._batch_size*self._feature_seq_len
         self._label_batch_seq_len = self._batch_size*self._label_seq_len
@@ -246,7 +278,14 @@ class DataGenerator(object):
         if self._per_file:
             self._nb_total_batches = len(self._filenames_list)
         else:
-            self._nb_total_batches = int(np.floor(total_frames / (self._batch_size*self._feature_seq_len)))
+            if self._modality == 'audio_visual' and not self._is_eval:
+                av_feat_frames, av_vid_frames = self._compute_av_effective_frame_totals()
+                self._nb_total_batches = int(min(
+                    np.floor(av_feat_frames / (self._batch_size * self._feature_seq_len)),
+                    np.floor(av_vid_frames / (self._batch_size * self._vid_feature_seq_len)),
+                ))
+            else:
+                self._nb_total_batches = int(np.floor(total_frames / (self._batch_size*self._feature_seq_len)))
 
         self._feature_batch_seq_len = self._batch_size*self._feature_seq_len
         self._label_batch_seq_len = self._batch_size*self._label_seq_len
@@ -347,6 +386,8 @@ class DataGenerator(object):
                 # load feat and label to circular buffer. Always maintain atleast one batch worth feat and label in the
                 # circular buffer. If not keep refilling it.
                 while (len(self._circ_buf_feat) < self._feature_batch_seq_len or (hasattr(self, '_circ_buf_vid_feat') and hasattr(self, '_vid_feature_batch_seq_len') and len(self._circ_buf_vid_feat) < self._vid_feature_batch_seq_len)):
+                    if file_cnt >= len(self._filenames_list):
+                        break
                     temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[file_cnt]))
 
                     for row_cnt, row in enumerate(temp_feat):
@@ -374,6 +415,11 @@ class DataGenerator(object):
 
                     file_cnt = file_cnt + 1
 
+                if len(self._circ_buf_feat) < self._feature_batch_seq_len:
+                    break
+                if self._modality == 'audio_visual' and len(self._circ_buf_vid_feat) < self._vid_feature_batch_seq_len:
+                    break
+
                 # Read one batch size from the circular buffer
                 feat = np.zeros((self._feature_batch_seq_len, self._nb_mel_bins * self._nb_ch))
                 for j in range(self._feature_batch_seq_len):
@@ -399,6 +445,8 @@ class DataGenerator(object):
                 # load feat and label to circular buffer. Always maintain atleast one batch worth feat and label in the
                 # circular buffer. If not keep refilling it.
                 while (len(self._circ_buf_feat) < self._feature_batch_seq_len or (hasattr(self, '_circ_buf_vid_feat') and hasattr(self, '_vid_feature_batch_seq_len') and len(self._circ_buf_vid_feat) < self._vid_feature_batch_seq_len)):
+                    if file_cnt >= len(self._filenames_list):
+                        break
                     temp_feat = np.load(os.path.join(self._feat_dir, self._filenames_list[file_cnt]))
                     temp_label = np.load(os.path.join(self._label_dir, self._filenames_list[file_cnt]))
                     if self._modality == 'audio_visual':
@@ -449,6 +497,11 @@ class DataGenerator(object):
                                 self._circ_buf_vid_feat.append(vf_row)
 
                     file_cnt = file_cnt + 1
+
+                if len(self._circ_buf_feat) < self._feature_batch_seq_len or len(self._circ_buf_label) < self._label_batch_seq_len:
+                    break
+                if self._modality == 'audio_visual' and len(self._circ_buf_vid_feat) < self._vid_feature_batch_seq_len:
+                    break
 
                     # Read one batch size from the circular buffer
                 feat = np.zeros((self._feature_batch_seq_len, self._nb_mel_bins * self._nb_ch))

@@ -40,6 +40,8 @@ Under [`dcase2024-SedHead/`](dcase2024-SedHead):
 
 - dataset processing summary:
   [`data_preparation_summary.md`](data_preparation_summary.md)
+- full Chinese reproduction guide for newcomers:
+  [`REPRODUCTION_GUIDE_ZH.md`](REPRODUCTION_GUIDE_ZH.md)
 - code-specific Chinese README:
   [`code/README.md`](code/README.md)
 
@@ -228,4 +230,3 @@ If you need more detail:
   [`data_preparation_summary.md`](data_preparation_summary.md)
 - code-level Chinese explanation:
   [`code/README.md`](code/README.md)
-
