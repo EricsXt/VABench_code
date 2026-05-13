@@ -1282,6 +1282,146 @@ def get_params(argv='1'):
         params['distance_loss_weight'] = 1.0
         params['track_inference_threshold'] = 0.5
 
+    elif argv == '255':
+        log("MERGED local 16k AUDIO + explicit SED head + STARSS internal val split\n")
+        merged_root = '/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k'
+        params['quick_test'] = False
+        params['finetune_mode'] = False
+        params['load_backbone_only'] = False
+        params['pretrained_backbone_weights'] = None
+        params['dataset_dir'] = merged_root
+        params['feat_label_dir'] = '/data/zhuzhiyuan/starss23/seld_feat_label/merged_starss23_spatialqa_16k_task248'
+        params['dataset'] = 'foa'
+        params['modality'] = 'audio'
+        params['multi_accdoa'] = True
+        params['use_salsalite'] = False
+        params['fs'] = 16000
+        params['multi_gpu'] = True
+        params['num_workers'] = max(1, min(16, os.cpu_count() or 1))
+        params['split_strategy'] = 'manifest'
+        params['split_manifest_path'] = os.path.join(merged_root, 'split_manifest_starss_internal_val.json')
+        params['class_mapping_path'] = os.path.join(merged_root, 'class_mapping.json')
+        params['val_subset_ratio'] = 0.1
+        params['full_val_interval'] = 10
+        params['explicit_sed_head'] = True
+        params['adpit_pos_weight'] = 1.0
+        params['adpit_neg_weight'] = 0.01
+        params['adpit_dynamic_weight'] = True
+        params['adpit_dynamic_pos_cap'] = 20.0
+        params['activity_aux_weight'] = 1.0
+        params['activity_aux_pos_margin'] = 0.5
+        params['activity_aux_neg_margin'] = 0.02
+        params['distance_loss_weight'] = 0.1
+        params['sed_pos_weight'] = 2.0
+        params['sed_neg_weight'] = 1.0
+        params['sed_dynamic_weight'] = True
+        params['sed_dynamic_pos_cap'] = 25.0
+        params['sed_warmup_epochs'] = 5
+        params['sed_warmup_weight'] = 8.0
+        params['sed_main_weight'] = 1.0
+        params['regression_warmup_weight'] = 0.2
+        params['regression_main_weight'] = 1.0
+        params['distance_warmup_scale'] = 0.0
+        params['distance_main_scale'] = 1.0
+        params['sed_inference_threshold'] = 0.5
+        params['track_inference_threshold'] = 0.3
+
+    elif argv == '256':
+        log("MERGED local 16k AUDIO baseline + STARSS internal val split\n")
+        merged_root = '/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k'
+        params['quick_test'] = False
+        params['finetune_mode'] = False
+        params['load_backbone_only'] = False
+        params['pretrained_backbone_weights'] = None
+        params['dataset_dir'] = merged_root
+        params['feat_label_dir'] = '/data/zhuzhiyuan/starss23/seld_feat_label/merged_starss23_spatialqa_16k_task248'
+        params['dataset'] = 'foa'
+        params['modality'] = 'audio'
+        params['multi_accdoa'] = True
+        params['use_salsalite'] = False
+        params['fs'] = 16000
+        params['multi_gpu'] = True
+        params['num_workers'] = max(1, min(16, os.cpu_count() or 1))
+        params['split_strategy'] = 'manifest'
+        params['split_manifest_path'] = os.path.join(merged_root, 'split_manifest_starss_internal_val.json')
+        params['class_mapping_path'] = os.path.join(merged_root, 'class_mapping.json')
+        params['val_subset_ratio'] = 0.1
+        params['full_val_interval'] = 10
+        params['explicit_sed_head'] = False
+        params['activity_aux_weight'] = 0.0
+        params['distance_loss_weight'] = 1.0
+        params['track_inference_threshold'] = 0.5
+
+    elif argv == '257':
+        log("MERGED local 16k AUDIO-VISUAL + explicit SED head + STARSS internal val split\n")
+        merged_root = '/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k'
+        params['quick_test'] = False
+        params['finetune_mode'] = False
+        params['load_backbone_only'] = False
+        params['pretrained_backbone_weights'] = None
+        params['dataset_dir'] = merged_root
+        params['feat_label_dir'] = '/data/zhuzhiyuan/starss23/seld_feat_label/merged_starss23_spatialqa_16k_task250_av'
+        params['dataset'] = 'foa'
+        params['modality'] = 'audio_visual'
+        params['multi_accdoa'] = True
+        params['use_salsalite'] = False
+        params['fs'] = 16000
+        params['multi_gpu'] = True
+        params['num_workers'] = max(1, min(16, os.cpu_count() or 1))
+        params['split_strategy'] = 'manifest'
+        params['split_manifest_path'] = os.path.join(merged_root, 'split_manifest_starss_internal_val_av.json')
+        params['class_mapping_path'] = os.path.join(merged_root, 'class_mapping.json')
+        params['val_subset_ratio'] = 0.1
+        params['full_val_interval'] = 10
+        params['explicit_sed_head'] = True
+        params['adpit_pos_weight'] = 1.0
+        params['adpit_neg_weight'] = 0.01
+        params['adpit_dynamic_weight'] = True
+        params['adpit_dynamic_pos_cap'] = 20.0
+        params['activity_aux_weight'] = 1.0
+        params['activity_aux_pos_margin'] = 0.5
+        params['activity_aux_neg_margin'] = 0.02
+        params['distance_loss_weight'] = 0.1
+        params['sed_pos_weight'] = 2.0
+        params['sed_neg_weight'] = 1.0
+        params['sed_dynamic_weight'] = True
+        params['sed_dynamic_pos_cap'] = 25.0
+        params['sed_warmup_epochs'] = 5
+        params['sed_warmup_weight'] = 8.0
+        params['sed_main_weight'] = 1.0
+        params['regression_warmup_weight'] = 0.2
+        params['regression_main_weight'] = 1.0
+        params['distance_warmup_scale'] = 0.0
+        params['distance_main_scale'] = 1.0
+        params['sed_inference_threshold'] = 0.5
+        params['track_inference_threshold'] = 0.3
+
+    elif argv == '258':
+        log("MERGED local 16k AUDIO-VISUAL baseline + STARSS internal val split\n")
+        merged_root = '/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k'
+        params['quick_test'] = False
+        params['finetune_mode'] = False
+        params['load_backbone_only'] = False
+        params['pretrained_backbone_weights'] = None
+        params['dataset_dir'] = merged_root
+        params['feat_label_dir'] = '/data/zhuzhiyuan/starss23/seld_feat_label/merged_starss23_spatialqa_16k_task250_av'
+        params['dataset'] = 'foa'
+        params['modality'] = 'audio_visual'
+        params['multi_accdoa'] = True
+        params['use_salsalite'] = False
+        params['fs'] = 16000
+        params['multi_gpu'] = True
+        params['num_workers'] = max(1, min(16, os.cpu_count() or 1))
+        params['split_strategy'] = 'manifest'
+        params['split_manifest_path'] = os.path.join(merged_root, 'split_manifest_starss_internal_val_av.json')
+        params['class_mapping_path'] = os.path.join(merged_root, 'class_mapping.json')
+        params['val_subset_ratio'] = 0.1
+        params['full_val_interval'] = 10
+        params['explicit_sed_head'] = False
+        params['activity_aux_weight'] = 0.0
+        params['distance_loss_weight'] = 1.0
+        params['track_inference_threshold'] = 0.5
+
     elif argv == '999':
         log("QUICK TEST MODE\n")
         params['quick_test'] = True

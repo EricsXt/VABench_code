@@ -150,22 +150,37 @@ HFData 不是固定 20 秒切，而是按 `prepare_real_foa_to_dcase.py` 的事�
 
 ### 5.2 当前合并数据的 split 策略
 
-当前主合并集使用的策略是：
+当前主合并集**最新重跑版本**使用的策略是：
 
-- `train` = `STARSS23 train + HF train + HF test`
-- `valid` = `HF eval`
+- `train` = `STARSS23 train-internal + HF train`
+- `valid` = `STARSS23 val-internal`
 - `test` = `STARSS23 test`
 
 这样：
 
-- 训练时尽量多利用 HFData
-- `STARSS23 test` 保持为最终 benchmark 分数集合
+- 训练时继续利用 HFData
+- `best epoch / early stopping / 调参` 全部基于 `STARSS23 val-internal`
+- `STARSS23 test` 只保留为最终 benchmark 分数集合
 
 对应文件：
 
-- [`split_manifest.json`](/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/split_manifest.json:1)
+- [`split_manifest_starss_internal_val.json`](/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/split_manifest_starss_internal_val.json:1)
+- [`split_manifest_starss_internal_val_av.json`](/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/split_manifest_starss_internal_val_av.json:1)
 - [`source_manifest.json`](/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/source_manifest.json:1)
 - [`merge_summary.json`](/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/merge_summary.json:1)
+
+其中：
+
+- `audio-only` 版本：
+  - `train = 2766`
+  - `valid = 79`
+  - `test = 619`
+- `audio-visual` 版本：
+  - `train = 2713`
+  - `valid = 72`
+  - `test = 619`
+
+`audio-visual` 的 `valid` 少 `7` 条，是因为 `STARSS23 val-internal` 中有 `7` 条没有视频，必须过滤掉。
 
 ### 5.3 STARSS23-only 独立 split
 
@@ -220,6 +235,17 @@ HFData 不是固定 20 秒切，而是按 `prepare_real_foa_to_dcase.py` 的事�
 - `254` / `STARSS23+HF` / `audio-visual baseline`
   - 复用 `250`
 
+#### 使用新 split 的 merged 重跑 task
+
+- `255` / `STARSS23+HF` / `audio-only` / `SedHead`
+  - 复用 `248`
+- `256` / `STARSS23+HF` / `audio-only baseline`
+  - 复用 `248`
+- `257` / `STARSS23+HF` / `audio-visual` / `SedHead`
+  - 复用 `250`
+- `258` / `STARSS23+HF` / `audio-visual baseline`
+  - 复用 `250`
+
 ## 7. 当前实验矩阵
 
 ### 7.1 你的 SedHead
@@ -257,4 +283,3 @@ HFData 不是固定 20 秒切，而是按 `prepare_real_foa_to_dcase.py` 的事�
   [`train_seldnet.py`](/data/zhuzhiyuan/starss23/dcase2024-SedHead/train_seldnet.py:1)
 - 特征提取入口：
   [`batch_feature_extraction.py`](/data/zhuzhiyuan/starss23/dcase2024-SedHead/batch_feature_extraction.py:1)
-

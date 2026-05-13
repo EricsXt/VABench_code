@@ -11,6 +11,8 @@ The repository also contains two model families:
 - original `DCASE2024 SELD baseline`
 - modified `dcase2024-SedHead`
 
+For the merged `STARSS23 + HFData` setup, the **latest rerun split** uses `STARSS23 train-internal / val-internal / test`, and the corresponding rerun tasks are `255-258`.
+
 This README is written for someone who did **not** participate in the original setup and needs a practical, end-to-end overview.
 
 ## 1. What Is Included Here

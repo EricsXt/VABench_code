@@ -39,7 +39,7 @@
 1. 只用 `STARSS23`
 2. 用 `STARSS23 + HFData`
 
-最终形成 8 个实验：
+最初整理了 8 个实验：
 
 | Task | 模型 | 模态 | 训练数据 |
 |---|---|---|---|
@@ -53,6 +53,15 @@
 | 254 | baseline | audio-visual | STARSS23 + HF |
 
 所有最终 benchmark 分数都统一在 `STARSS23 test` 上汇报。
+
+后来为了把 merged 数据的验证集改成 `STARSS23 val-internal`，又新增了 4 个重跑 task：
+
+| Task | 模型 | 模态 | 训练数据 | split 口径 |
+|---|---|---|---|---|
+| 255 | SedHead | audio-only | STARSS23 + HF | `train = STARSS23 train-internal + HF train`, `valid = STARSS23 val-internal`, `test = STARSS23 test` |
+| 256 | baseline | audio-only | STARSS23 + HF | 同上 |
+| 257 | SedHead | audio-visual | STARSS23 + HF | 同上，但过滤无视频样本 |
+| 258 | baseline | audio-visual | STARSS23 + HF | 同上，但过滤无视频样本 |
 
 ---
 
@@ -341,17 +350,17 @@ STARSS23 的原始形式已经比较接近训练需要的格式，但仍然做�
 
 ### 6.2 split 策略
 
-当前主合并集采用：
+当前主合并集的**最新重跑口径**采用：
 
-- `train = STARSS23 train + HF train + HF test`
-- `valid = HF eval`
+- `train = STARSS23 train-internal + HF train`
+- `valid = STARSS23 val-internal`
 - `test = STARSS23 test`
 
 原因：
 
-- 希望尽量多利用 HFData 训练
-- 同时保留一个独立 `valid` 做 early stopping 和选 checkpoint
-- 最终 benchmark 保持只看 `STARSS23 test`
+- 不再使用 `HF eval` 选 best epoch
+- 用 `STARSS23` 自己的内部验证集做 early stopping 和调参
+- 最终 benchmark 仍然只看 `STARSS23 test`
 
 对应文件：
 
@@ -370,16 +379,30 @@ STARSS23 的原始形式已经比较接近训练需要的格式，但仍然做�
 - 视频特征没有
 - 最终在 `DataGenerator` 中索引越界
 
-因此又额外生成了：
+因此当前真正使用的是两份新的 manifest：
 
-- `/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/split_manifest_av.json`
+- `audio-only`
+  - `/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/split_manifest_starss_internal_val.json`
+- `audio-visual`
+  - `/data/zhuzhiyuan/starss23/merged_seld_foa_starss23_spatialqa_20s_16k/split_manifest_starss_internal_val_av.json`
 
 它的特点是：
 
-- `train` 只保留有视频的样本
-- `valid` 和 `test` 保持不变
+- `audio-only`：
+  - `train = 2766`
+  - `valid = 79`
+  - `test = 619`
+- `audio-visual`：
+  - `train = 2713`
+  - `valid = 72`
+  - `test = 619`
 
-这一步是 `250/254` 能正常训练的必要条件。
+`audio-visual` 的 `valid` 比 `audio-only` 少 `7` 条，是因为：
+
+- `STARSS23 val-internal` 中有 `7` 条没有视频
+- AV 训练和验证必须过滤掉这些样本，否则 dataloader 会报错
+
+这一步是 `257/258` 能正常训练的必要条件。
 
 ---
 
@@ -954,14 +977,10 @@ F1 = \frac{2TP}{2TP + FP + FN}
 
 当前是 SedHead 略优。
 
-最终完整比较仍需等待：
+如果使用新的 `STARSS23 val-internal` 口径，最终应该看的是新 task：
 
-- `250`
-- `254`
-
-跑完之后才能补齐：
-
-- `STARSS23 + HF` 的 `audio-visual` 对比
+- `255` vs `256`：`STARSS23 + HF` 的 `audio-only`
+- `257` vs `258`：`STARSS23 + HF` 的 `audio-visual`
 
 ---
 
@@ -977,7 +996,7 @@ F1 = \frac{2TP}{2TP + FP + FN}
 
 必须用：
 
-- `split_manifest_av.json`
+- `split_manifest_starss_internal_val_av.json`
 
 ### 16.3 `inf/-inf` 不能直接用于标准 DOA 评测
 
@@ -990,7 +1009,7 @@ F1 = \frac{2TP}{2TP + FP + FN}
 
 ### 16.4 baseline 不要重复提特征
 
-`251-254` 复用 `247-250` 的特征目录，不要再额外跑一遍。
+旧的 `251-254` 复用 `247-250` 的特征目录；新的 `255-258` 也继续复用同一套特征目录，不要再额外提一次。
 
 ### 16.5 看日志时优先看 `*_auto.log`
 
